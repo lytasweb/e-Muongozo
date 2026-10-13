@@ -1,0 +1,57 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: emuongozo_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: emuongozo
+      POSTGRES_PASSWORD: emuongozo_pass
+      POSTGRES_DB: emuongozo
+    volumes:
+      - db_data:/var/lib/postgresql/data
+      - ./backend/init.sql:/docker-entrypoint-initdb.d/01-init.sql
+      - ./backend/migrations/002_authorized_entities.sql:/docker-entrypoint-initdb.d/02-entities.sql
+      - ./backend/migrations/003_notifications.sql:/docker-entrypoint-initdb.d/03-notifications.sql
+      - ./backend/migrations/004_schools.sql:/docker-entrypoint-initdb.d/04-schools.sql
+      - ./backend/migrations/005_members.sql:/docker-entrypoint-initdb.d/05-members.sql
+      - ./backend/migrations/006_activity.sql:/docker-entrypoint-initdb.d/06-activity.sql
+
+
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U emuongozo -d emuongozo"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  backend:
+    build: ./backend
+    container_name: emuongozo_backend
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgres://emuongozo:emuongozo_pass@db:5432/emuongozo
+      JWT_SECRET: super_secret_change_me
+      PORT: 4000
+    ports:
+      - "4000:4000"
+    volumes:
+      - ./backend/src:/app/src
+    depends_on:
+      db:
+        condition: service_healthy
+
+  frontend:
+    build: ./frontend
+    container_name: emuongozo_frontend
+    restart: unless-stopped
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./frontend/src:/app/src
+      - ./frontend/index.html:/app/index.html
+      - ./frontend/vite.config.js:/app/vite.config.js
+      - /app/node_modules
+    depends_on:
+      - backend
+
+volumes:
+  db_data:
